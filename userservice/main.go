@@ -1,8 +1,13 @@
 package main
 
 import (
+	"bookmysalon/pkg/database"
+	"bookmysalon/pkg/jwt"
+	"encoding/json"
 	"net/http"
+
 	"github.com/gorilla/mux"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -22,33 +27,32 @@ type User struct {
 }
 
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
-	db := connect()
+	db, err := database.Connect()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	defer db.Close()
 
 	var u User
-	err := json.NewDecoder(r.Body).Decode(&u)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	// Hash the password (for security)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), 8)
 	if err != nil {
 		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
 		return
 	}
 
-	// Insert into DB
 	query := "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id;"
-	err = db.QueryRow(query, u.Username, hashedPassword).Scan(&u.ID)
-	if err != nil {
+	if err := db.QueryRow(query, u.Username, hashedPassword).Scan(&u.ID); err != nil {
 		http.Error(w, "Failed to register user", http.StatusInternalServerError)
 		return
 	}
 
-	// Generate JWT token
-	token, err := GenerateToken(u.Username)
+	token, err := jwt.GenerateToken(u.Username)
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
@@ -57,36 +61,33 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(token))
 }
 
-
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	db := connect()
+	db, err := database.Connect()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	defer db.Close()
 
 	var u User
-	err := json.NewDecoder(r.Body).Decode(&u)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	// Verify credentials from DB
 	var dbUser User
 	query := "SELECT id, password FROM users WHERE username=$1;"
-	err = db.QueryRow(query, u.Username).Scan(&dbUser.ID, &dbUser.Password)
-	if err != nil {
+	if err := db.QueryRow(query, u.Username).Scan(&dbUser.ID, &dbUser.Password); err != nil {
 		http.Error(w, "User not found", http.StatusUnauthorized)
 		return
 	}
 
-	// Check password
-	err = bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(u.Password))
-	if err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(u.Password)); err != nil {
 		http.Error(w, "Invalid password", http.StatusUnauthorized)
 		return
 	}
 
-	// Generate JWT token
-	token, err := GenerateToken(u.Username)
+	token, err := jwt.GenerateToken(u.Username)
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
@@ -94,7 +95,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte(token))
 }
-
 
 func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	tokenHeader := r.Header.Get("Authorization")
@@ -103,27 +103,31 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := VerifyToken(tokenHeader)
+	claims, err := jwt.VerifyToken(tokenHeader)
 	if err != nil {
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return
 	}
 
-	db := connect()
+	db, err := database.Connect()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 	defer db.Close()
 
-	// Fetch user details
 	var u User
 	query := "SELECT id, username FROM users WHERE username=$1;"
-	err = db.QueryRow(query, claims.Username).Scan(&u.ID, &u.Username)
-	if err != nil {
+	if err := db.QueryRow(query, claims.Username).Scan(&u.ID, &u.Username); err != nil {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
 
-	// Do not send the password, even if hashed
-	u.Password = ""
-	response, err := json.Marshal(u)
-	if err != nil {
-		http.Error(w, "Failed to process user
-
+	u.Password = "" // Do not send the password, even if hashed
+	if response, err := json.Marshal(u); err != nil {
+		http.Error(w, "Failed to process user data", http.StatusInternalServerError)
+		return
+	} else {
+		w.Write(response)
+	}
+}

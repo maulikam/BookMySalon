@@ -54,3 +54,49 @@
 - To provide customer support, handle inquiries, or even allow user-to-salon direct communication.
 
 Remember that while microservices offer various advantages like independent scaling and deployment, they also introduce complexity in terms of service orchestration, data consistency, and inter-service communication. Properly designing the inter-communication between these services using tools like message brokers (e.g., Kafka, RabbitMQ) and ensuring their resilience with patterns like Circuit Breaker can be crucial for the success of your application.
+
+### Directory structure
+BookMySalon-backend/
+│
+├── cmd/                          # Main applications for this project
+│   ├── userservice/              # User Service App
+│   │   ├── main.go               # Entry point for the User Service
+│   └── otherservice/             # Other microservices can have their folders here
+│
+├── pkg/                          # Libraries and code that can be used across different services
+│   ├── database/                 # Common DB related functions
+│   │   ├── database.go
+│   │   └── migrations/           # DB migrations scripts if you're using any tool for that
+│   ├── jwt/
+│   │   └── jwt.go
+│   └── middleware/               # Common middlewares like logging, error handling, etc.
+│
+├── services/                     # All the microservices (business logic)
+│   ├── user/
+│   │   ├── handler.go            # Handlers for user service (e.g., RegisterHandler, LoginHandler)
+│   │   ├── model.go              # User data models
+│   │   └── repository.go         # Database operations for user service
+│   └── appointment/              # Appointment Service
+│       ├── handler.go
+│       ├── model.go
+│       └── repository.go
+│   └── ...                       # Other microservices folders
+│
+├── go.mod                        # Module definition
+├── go.sum                        # The expected cryptographic checksums of content.
+└── README.md
+
+
+Explanation:
+
+cmd/: This contains the entry points for different microservices. Each microservice will have its main application here.
+
+pkg/: Shared libraries and packages that can be used across different services. This ensures code reusability and separation.
+
+services/: This is where the actual microservices reside. Each service has its directory and contains its handlers, data models, and DB operations. Keeping each microservice in a separate directory makes the codebase organized.
+
+database.go and jwt.go have been moved inside pkg/ since they can be considered as common functionalities that might be used across multiple services.
+
+Inside each service directory (like user), having separate files for handlers, models, and database operations (repository pattern) helps in keeping concerns separated and the code more organized.
+
+Remember, this is just a suggested structure, and the best directory/package structure often depends on the project's specific needs and the team's preferences. However, the above structure is scalable and helps in maintaining a large codebase with multiple microservices.

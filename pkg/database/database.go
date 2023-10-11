@@ -1,8 +1,9 @@
-package main
+package database
 
 import (
 	"database/sql"
-	"log"
+	"fmt"
+
 	_ "github.com/lib/pq"
 )
 
@@ -14,15 +15,9 @@ const (
 	dbname   = "bookmysalon"
 )
 
-
-
-
-func connect() *sql.DB {
+// Connect establishes a connection to the database and returns it.
+func Connect() (*sql.DB, error) {
 	connStr := "host=%s port=%d user=%s password=%s dbname=%s sslmode=disable"
 	connStr = fmt.Sprintf(connStr, host, port, user, password, dbname)
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return db
+	return sql.Open("postgres", connStr)
 }
