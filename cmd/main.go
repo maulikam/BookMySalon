@@ -28,6 +28,15 @@ func main() {
 	// Salon routes
 	r.HandleFunc("/salon", salonHandler.CreateSalon).Methods("POST")
 	r.HandleFunc("/salon/update", salonHandler.UpdateSalonDetails).Methods("PUT")
+	r.HandleFunc("/salons", salonHandler.ListAllSalons).Methods("GET")
+	r.HandleFunc("/service", salonHandler.AddService).Methods("POST")
+	r.HandleFunc("/service/update", salonHandler.UpdateServiceDetails).Methods("PUT")
+	r.HandleFunc("/service/{serviceID}", salonHandler.DeleteService).Methods("DELETE")
+	r.HandleFunc("/service/{serviceID}", salonHandler.GetServiceDetails).Methods("GET")
+	r.HandleFunc("/salon/{salonID}/services", salonHandler.GetServicesBySalon).Methods("GET")
+	r.HandleFunc("/salon/{salonID}/average-rating", salonHandler.GetSalonAverageRating).Methods("GET")
+	r.HandleFunc("/salon/{salonID}", salonHandler.GetSalonDetails).Methods("GET")
+	r.HandleFunc("/salon/{salonID}", salonHandler.DeleteSalon).Methods("DELETE")
 
 	// User routes
 	r.HandleFunc("/register", userHandler.RegisterHandler).Methods("POST")
