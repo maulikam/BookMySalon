@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bookmysalon/services/appointment"
 	"bookmysalon/services/salon"
 	"bookmysalon/services/user"
 	"log"
@@ -22,6 +23,13 @@ func main() {
 	// Initialize User service
 	userServiceImpl := &user.UserServiceImpl{} // Assuming you have implemented it
 	userHandler := user.NewUserHandler(userServiceImpl)
+
+	// Initialize Appointment service
+	appointmentService, err := appointment.NewAppointmentService()
+	if err != nil {
+		log.Fatalf("Failed to initialize appointment service: %v", err)
+	}
+	appointmentHandler := appointment.NewAppointmentHandler(appointmentService)
 
 	r := mux.NewRouter()
 
@@ -45,6 +53,24 @@ func main() {
 	r.HandleFunc("/profile", userHandler.UpdateProfileHandler).Methods("PUT")
 	r.HandleFunc("/change-password", userHandler.ChangePasswordHandler).Methods("PUT")
 	r.HandleFunc("/profile", userHandler.DeleteAccountHandler).Methods("DELETE")
+
+	// Appointment routes
+	r.HandleFunc("/appointment", appointmentHandler.CreateAppointment).Methods("POST")
+	r.HandleFunc("/appointment/{appointmentID}", appointmentHandler.GetAppointmentDetails).Methods("GET")
+	r.HandleFunc("/appointment/update", appointmentHandler.UpdateAppointmentDetails).Methods("PUT")
+	r.HandleFunc("/appointment/{appointmentID}", appointmentHandler.DeleteAppointment).Methods("DELETE")
+	r.HandleFunc("/appointments/user/{userID}", appointmentHandler.ListAppointmentsByUserID).Methods("GET")
+	r.HandleFunc("/appointments/salon/{salonID}", appointmentHandler.ListAppointmentsBySalonID).Methods("GET")
+	r.HandleFunc("/appointments/service/{serviceID}", appointmentHandler.ListAppointmentsByServiceID).Methods("GET")
+	r.HandleFunc("/appointments/status/{status}", appointmentHandler.ListAppointmentsByStatus).Methods("GET")
+	r.HandleFunc("/appointment/{appointmentID}/notification", appointmentHandler.SetNotificationForAppointment).Methods("PUT")
+	r.HandleFunc("/appointments/upcoming", appointmentHandler.ListUpcomingAppointments).Methods("GET")
+	r.HandleFunc("/appointments/past", appointmentHandler.ListPastAppointments).Methods("GET")
+	r.HandleFunc("/appointments/range", appointmentHandler.ListAppointmentsByDateRange).Methods("GET")
+	r.HandleFunc("/appointment/{appointmentID}/cancel", appointmentHandler.CancelAppointment).Methods("PUT")
+	r.HandleFunc("/appointment/{appointmentID}/confirm", appointmentHandler.ConfirmAppointment).Methods("PUT")
+	r.HandleFunc("/appointment/{appointmentID}/reschedule", appointmentHandler.RescheduleAppointment).Methods("PUT")
+	r.HandleFunc("/appointments/notification", appointmentHandler.ListAppointmentsByNotificationSetting).Methods("GET")
 
 	// Swagger UI and JSON routes (assuming you still want these from the salon handlers)
 	fs := http.FileServer(http.Dir("./swaggerui/"))
