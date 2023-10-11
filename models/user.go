@@ -2,10 +2,23 @@
 
 package models
 
+// User representation
+// swagger:parameters registerUser loginUser
 type User struct {
-	ID           int    `json:"id"`
-	Username     string `json:"username"`
-	Password     string `json:"password"` // This should store the hashed value
+	// User's unique ID
+	//
+	// required: true
+	ID int `json:"id"`
+
+	// Username for the user
+	//
+	// required: true
+	Username string `json:"username"`
+
+	// Password for the user
+	//
+	// required: true
+	Password     string `json:"password"`
 	Email        string `json:"email"`
 	ProfileImage string `json:"profile_image"`
 	DateJoined   string `json:"date_joined"`

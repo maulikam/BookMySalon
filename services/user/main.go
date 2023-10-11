@@ -1,3 +1,18 @@
+// Package classification of Book My Salon API.
+//
+// Documentation for Book My Salon API.
+//
+// Schemes: http
+// BasePath: /
+// Version: 1.0.0
+//
+// Consumes:
+// - application/json
+//
+// Produces:
+// - application/json
+//
+// swagger:meta
 package main
 
 import (
@@ -46,6 +61,14 @@ func connectToDatabase() (*sql.DB, error) {
 	return db, nil
 }
 
+// Register a new user
+// swagger:route POST /register users registerUser
+//
+// Responses:
+//
+//	200: tokenResponse
+//	400: errorResponse
+//	500: errorResponse
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := connectToDatabase()
 	if err != nil {
@@ -87,6 +110,14 @@ func registerUser(db *sql.DB, u *models.User) error {
 	return nil
 }
 
+// User login
+// swagger:route POST /login users loginUser
+//
+// Responses:
+//
+//	200: tokenResponse
+//	401: errorResponse
+//	500: errorResponse
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := connectToDatabase()
 	if err != nil {
@@ -133,6 +164,15 @@ func loginUser(db *sql.DB, u *models.User) (string, error) {
 	return token, nil
 }
 
+// Get user profile
+// swagger:route GET /profile users userProfile
+//
+// Responses:
+//
+//	200: userResponse
+//	401: errorResponse
+//	404: errorResponse
+//	500: errorResponse
 func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	tokenHeader := r.Header.Get("Authorization")
 	if tokenHeader == "" {
