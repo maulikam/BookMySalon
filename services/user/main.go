@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	"bookmysalon/models"
 	"bookmysalon/pkg/database"
 	"bookmysalon/pkg/jwt"
 
@@ -37,12 +38,6 @@ func main() {
 	http.ListenAndServe(ServerAddress, r)
 }
 
-type User struct {
-	ID       int    `json:"id"`
-	Username string `json:"username"`
-	Password string `json:"password"` // This should ideally be hashed, not plain text.
-}
-
 func connectToDatabase() (*sql.DB, error) {
 	db, err := database.Connect()
 	if err != nil {
@@ -59,7 +54,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	var u User
+	var u models.User
 	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
 		http.Error(w, BadRequestMessage, http.StatusBadRequest)
 		return
@@ -79,7 +74,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(token))
 }
 
-func registerUser(db *sql.DB, u *User) error {
+func registerUser(db *sql.DB, u *models.User) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), BcryptCostFactor)
 	if err != nil {
 		return errors.New(HashingErrorMessage)
@@ -100,7 +95,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	var u User
+	var u models.User
 	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
 		http.Error(w, BadRequestMessage, http.StatusBadRequest)
 		return
@@ -120,8 +115,8 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(token))
 }
 
-func loginUser(db *sql.DB, u *User) (string, error) {
-	var dbUser User
+func loginUser(db *sql.DB, u *models.User) (string, error) {
+	var dbUser models.User
 	query := "SELECT id, password FROM users WHERE username=$1;"
 	if err := db.QueryRow(query, u.Username).Scan(&dbUser.ID, &dbUser.Password); err != nil {
 		return "", errors.New(UserNotFoundMessage)
@@ -172,8 +167,8 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(response)
 }
 
-func fetchUserProfile(db *sql.DB, username string) (*User, error) {
-	var u User
+func fetchUserProfile(db *sql.DB, username string) (*models.User, error) {
+	var u models.User
 	query := "SELECT id, username FROM users WHERE username=$1;"
 	if err := db.QueryRow(query, username).Scan(&u.ID, &u.Username); err != nil {
 		return nil, errors.New(UserNotFoundMessage)
