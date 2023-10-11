@@ -1,7 +1,9 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"bookmysalon/pkg/database"
@@ -11,6 +13,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	ServerAddress           = ":8080"
+	BcryptCostFactor        = 8
+	DatabaseErrorMessage    = "Database error"
+	BadRequestMessage       = "Bad request"
+	TokenErrorMessage       = "Failed to generate token"
+	HashingErrorMessage     = "Failed to hash password"
+	UserNotFoundMessage     = "User not found"
+	InvalidPasswordMessage  = "Invalid password"
+	InvalidTokenMessage     = "Invalid token"
+	MissingTokenMessage     = "Missing token"
+	ProcessingDataErrorMess = "Failed to process user data"
+)
+
 func main() {
 	r := mux.NewRouter()
 
@@ -18,7 +34,7 @@ func main() {
 	r.HandleFunc("/login", LoginHandler).Methods("POST")
 	r.HandleFunc("/profile", ProfileHandler).Methods("GET")
 
-	http.ListenAndServe(":8080", r)
+	http.ListenAndServe(ServerAddress, r)
 }
 
 type User struct {
@@ -27,108 +43,141 @@ type User struct {
 	Password string `json:"password"` // This should ideally be hashed, not plain text.
 }
 
-func RegisterHandler(w http.ResponseWriter, r *http.Request) {
+func connectToDatabase() (*sql.DB, error) {
 	db, err := database.Connect()
 	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		return nil, err
+	}
+	return db, nil
+}
+
+func RegisterHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := connectToDatabase()
+	if err != nil {
+		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
 		return
 	}
 	defer db.Close()
 
 	var u User
 	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, BadRequestMessage, http.StatusBadRequest)
 		return
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), 8)
-	if err != nil {
-		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
-		return
-	}
-
-	query := "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id;"
-	if err := db.QueryRow(query, u.Username, hashedPassword).Scan(&u.ID); err != nil {
-		http.Error(w, "Failed to register user", http.StatusInternalServerError)
+	if err := registerUser(db, &u); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	token, err := jwt.GenerateToken(u.Username)
 	if err != nil {
-		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		http.Error(w, TokenErrorMessage, http.StatusInternalServerError)
 		return
 	}
 
 	w.Write([]byte(token))
 }
 
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	db, err := database.Connect()
+func registerUser(db *sql.DB, u *User) error {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), BcryptCostFactor)
 	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		return errors.New(HashingErrorMessage)
+	}
+
+	query := "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id;"
+	if err := db.QueryRow(query, u.Username, hashedPassword).Scan(&u.ID); err != nil {
+		return errors.New("Failed to register user")
+	}
+	return nil
+}
+
+func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := connectToDatabase()
+	if err != nil {
+		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
 		return
 	}
 	defer db.Close()
 
 	var u User
 	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, BadRequestMessage, http.StatusBadRequest)
 		return
 	}
 
-	var dbUser User
-	query := "SELECT id, password FROM users WHERE username=$1;"
-	if err := db.QueryRow(query, u.Username).Scan(&dbUser.ID, &dbUser.Password); err != nil {
-		http.Error(w, "User not found", http.StatusUnauthorized)
-		return
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(u.Password)); err != nil {
-		http.Error(w, "Invalid password", http.StatusUnauthorized)
-		return
-	}
-
-	token, err := jwt.GenerateToken(u.Username)
+	token, err := loginUser(db, &u)
 	if err != nil {
-		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		switch err.Error() {
+		case UserNotFoundMessage, InvalidPasswordMessage:
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
 	w.Write([]byte(token))
+}
+
+func loginUser(db *sql.DB, u *User) (string, error) {
+	var dbUser User
+	query := "SELECT id, password FROM users WHERE username=$1;"
+	if err := db.QueryRow(query, u.Username).Scan(&dbUser.ID, &dbUser.Password); err != nil {
+		return "", errors.New(UserNotFoundMessage)
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(u.Password)); err != nil {
+		return "", errors.New(InvalidPasswordMessage)
+	}
+
+	token, err := jwt.GenerateToken(u.Username)
+	if err != nil {
+		return "", errors.New(TokenErrorMessage)
+	}
+	return token, nil
 }
 
 func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	tokenHeader := r.Header.Get("Authorization")
 	if tokenHeader == "" {
-		http.Error(w, "Missing token", http.StatusUnauthorized)
+		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
 		return
 	}
 
 	claims, err := jwt.VerifyToken(tokenHeader)
 	if err != nil {
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		http.Error(w, InvalidTokenMessage, http.StatusUnauthorized)
 		return
 	}
 
-	db, err := database.Connect()
+	db, err := connectToDatabase()
 	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
 		return
 	}
 	defer db.Close()
 
-	var u User
-	query := "SELECT id, username FROM users WHERE username=$1;"
-	if err := db.QueryRow(query, claims.Username).Scan(&u.ID, &u.Username); err != nil {
-		http.Error(w, "User not found", http.StatusNotFound)
+	userProfile, err := fetchUserProfile(db, claims.Username)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	u.Password = "" // Do not send the password, even if hashed
-	if response, err := json.Marshal(u); err != nil {
-		http.Error(w, "Failed to process user data", http.StatusInternalServerError)
+	response, err := json.Marshal(userProfile)
+	if err != nil {
+		http.Error(w, ProcessingDataErrorMess, http.StatusInternalServerError)
 		return
-	} else {
-		w.Write(response)
 	}
+	w.Write(response)
+}
+
+func fetchUserProfile(db *sql.DB, username string) (*User, error) {
+	var u User
+	query := "SELECT id, username FROM users WHERE username=$1;"
+	if err := db.QueryRow(query, username).Scan(&u.ID, &u.Username); err != nil {
+		return nil, errors.New(UserNotFoundMessage)
+	}
+	u.Password = "" // Ensure password is not exposed
+	return &u, nil
 }
