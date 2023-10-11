@@ -1,4 +1,4 @@
-module userservice
+module bookmysalon
 
 go 1.21.1
 

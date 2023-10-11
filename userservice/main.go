@@ -1,10 +1,11 @@
 package main
 
 import (
-	"bookmysalon/pkg/database"
-	"bookmysalon/pkg/jwt"
 	"encoding/json"
 	"net/http"
+
+	"bookmysalon/pkg/database"
+	"bookmysalon/pkg/jwt"
 
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
