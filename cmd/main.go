@@ -2,6 +2,7 @@ package main
 
 import (
 	"bookmysalon/services/appointment"
+	"bookmysalon/services/availability"
 	"bookmysalon/services/salon"
 	"bookmysalon/services/user"
 	"log"
@@ -30,6 +31,13 @@ func main() {
 		log.Fatalf("Failed to initialize appointment service: %v", err)
 	}
 	appointmentHandler := appointment.NewAppointmentHandler(appointmentService)
+
+	// Initialize Availability service
+	availabilityService, err := availability.NewAvailabilityService()
+	if err != nil {
+		log.Fatalf("Failed to initialize availability service: %v", err)
+	}
+	availabilityHandler := availability.NewAvailabilityHandler(availabilityService)
 
 	r := mux.NewRouter()
 
@@ -71,6 +79,20 @@ func main() {
 	r.HandleFunc("/appointment/{appointmentID}/confirm", appointmentHandler.ConfirmAppointment).Methods("PUT")
 	r.HandleFunc("/appointment/{appointmentID}/reschedule", appointmentHandler.RescheduleAppointment).Methods("PUT")
 	r.HandleFunc("/appointments/notification", appointmentHandler.ListAppointmentsByNotificationSetting).Methods("GET")
+
+	// Availability routes
+	r.HandleFunc("/availability", availabilityHandler.CreateAvailability).Methods("POST")
+	r.HandleFunc("/availability/{availabilityID}", availabilityHandler.GetAvailabilityDetails).Methods("GET")
+	r.HandleFunc("/availability/update", availabilityHandler.UpdateAvailabilityDetails).Methods("PUT")
+	r.HandleFunc("/availability/{availabilityID}", availabilityHandler.DeleteAvailability).Methods("DELETE")
+	r.HandleFunc("/availabilities/salon/{salonID}", availabilityHandler.ListAvailabilitiesBySalonID).Methods("GET")
+	r.HandleFunc("/availabilities/service/{serviceID}", availabilityHandler.ListAvailabilitiesByServiceID).Methods("GET")
+	r.HandleFunc("/availabilities/status/{status}", availabilityHandler.ListAvailabilitiesByStatus).Methods("GET")
+	r.HandleFunc("/availabilities/open/{serviceID}/{salonID}", availabilityHandler.ListOpenAvailabilities).Methods("GET")
+	r.HandleFunc("/availability/{availabilityID}/book", availabilityHandler.BookAvailability).Methods("PUT")
+	r.HandleFunc("/availability/{availabilityID}/cancel", availabilityHandler.CancelBooking).Methods("PUT")
+	r.HandleFunc("/availabilities/booked/{serviceID}/{salonID}", availabilityHandler.ListBookedAvailabilities).Methods("GET")
+	r.HandleFunc("/availabilities/range", availabilityHandler.ListAvailabilitiesByDateRange).Methods("GET")
 
 	// Swagger UI and JSON routes (assuming you still want these from the salon handlers)
 	fs := http.FileServer(http.Dir("./swaggerui/"))
