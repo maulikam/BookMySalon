@@ -3,6 +3,7 @@ package main
 import (
 	"bookmysalon/services/appointment"
 	"bookmysalon/services/availability"
+	"bookmysalon/services/review"
 	"bookmysalon/services/salon"
 	"bookmysalon/services/user"
 	"log"
@@ -38,6 +39,14 @@ func main() {
 		log.Fatalf("Failed to initialize availability service: %v", err)
 	}
 	availabilityHandler := availability.NewAvailabilityHandler(availabilityService)
+
+	// Initialize Review service
+	// Initialize Appointment service
+	reviewService, err := review.NewReviewService()
+	if err != nil {
+		log.Fatalf("Failed to initialize appointment service: %v", err)
+	}
+	reviewHandler := review.NewReviewHandler(reviewService)
 
 	r := mux.NewRouter()
 
@@ -93,6 +102,15 @@ func main() {
 	r.HandleFunc("/availability/{availabilityID}/cancel", availabilityHandler.CancelBooking).Methods("PUT")
 	r.HandleFunc("/availabilities/booked/{serviceID}/{salonID}", availabilityHandler.ListBookedAvailabilities).Methods("GET")
 	r.HandleFunc("/availabilities/range", availabilityHandler.ListAvailabilitiesByDateRange).Methods("GET")
+
+	// Define your review routes
+	r.HandleFunc("/reviews", reviewHandler.CreateReview).Methods("POST")
+	r.HandleFunc("/reviews/{reviewID}", reviewHandler.GetReviewByID).Methods("GET")
+	r.HandleFunc("/reviews/{reviewID}", reviewHandler.UpdateReview).Methods("PUT")
+	r.HandleFunc("/reviews/{reviewID}", reviewHandler.DeleteReview).Methods("DELETE")
+	r.HandleFunc("/reviews/salon/{salonID}", reviewHandler.ListReviewsBySalonID).Methods("GET")
+	r.HandleFunc("/reviews/user/{userID}", reviewHandler.ListReviewsByUserID).Methods("GET")
+	r.HandleFunc("/reviews/rating/{rating}", reviewHandler.ListReviewsByRating).Methods("GET")
 
 	// Swagger UI and JSON routes (assuming you still want these from the salon handlers)
 	fs := http.FileServer(http.Dir("./swaggerui/"))
