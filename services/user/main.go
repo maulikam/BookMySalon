@@ -49,6 +49,9 @@ func main() {
 	r.HandleFunc("/register", RegisterHandler).Methods("POST")
 	r.HandleFunc("/login", LoginHandler).Methods("POST")
 	r.HandleFunc("/profile", ProfileHandler).Methods("GET")
+	r.HandleFunc("/profile", UpdateProfileHandler).Methods("PUT")
+	r.HandleFunc("/change-password", ChangePasswordHandler).Methods("PUT")
+	r.HandleFunc("/profile", DeleteAccountHandler).Methods("DELETE")
 
 	http.ListenAndServe(ServerAddress, r)
 }
@@ -215,4 +218,162 @@ func fetchUserProfile(db *sql.DB, username string) (*models.User, error) {
 	}
 	u.Password = "" // Ensure password is not exposed
 	return &u, nil
+}
+
+// swagger:route PUT /profile users updateUserProfile
+//
+// Responses:
+//
+//	200: userResponse
+//	401: errorResponse
+//	400: errorResponse
+//	500: errorResponse
+func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
+	tokenHeader := r.Header.Get("Authorization")
+	if tokenHeader == "" {
+		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := jwt.VerifyToken(tokenHeader)
+	if err != nil {
+		http.Error(w, InvalidTokenMessage, http.StatusUnauthorized)
+		return
+	}
+
+	db, err := connectToDatabase()
+	if err != nil {
+		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	var u models.User
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
+		http.Error(w, BadRequestMessage, http.StatusBadRequest)
+		return
+	}
+
+	u.Username = claims.Username // Ensure the username from token is used
+	if err := updateUserProfile(db, &u); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write([]byte("Profile updated successfully"))
+}
+
+func updateUserProfile(db *sql.DB, u *models.User) error {
+	query := "UPDATE users SET email=$1, profile_image=$2 WHERE username=$3;"
+	_, err := db.Exec(query, u.Email, u.ProfileImage, u.Username)
+	return err
+}
+
+type PasswordChangeRequest struct {
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
+// swagger:route PUT /change-password users changePassword
+//
+// Responses:
+//
+//	200: messageResponse
+//	401: errorResponse
+//	400: errorResponse
+//	500: errorResponse
+func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
+	tokenHeader := r.Header.Get("Authorization")
+	if tokenHeader == "" {
+		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := jwt.VerifyToken(tokenHeader)
+	if err != nil {
+		http.Error(w, InvalidTokenMessage, http.StatusUnauthorized)
+		return
+	}
+
+	db, err := connectToDatabase()
+	if err != nil {
+		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	var pcr PasswordChangeRequest
+	if err := json.NewDecoder(r.Body).Decode(&pcr); err != nil {
+		http.Error(w, BadRequestMessage, http.StatusBadRequest)
+		return
+	}
+
+	if err := changeUserPassword(db, claims.Username, pcr.OldPassword, pcr.NewPassword); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write([]byte("Password changed successfully"))
+}
+
+func changeUserPassword(db *sql.DB, username, oldPassword, newPassword string) error {
+	var currentHashedPassword string
+	query := "SELECT password FROM users WHERE username=$1;"
+	if err := db.QueryRow(query, username).Scan(&currentHashedPassword); err != nil {
+		return errors.New(UserNotFoundMessage)
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(currentHashedPassword), []byte(oldPassword)); err != nil {
+		return errors.New(InvalidPasswordMessage)
+	}
+
+	newHashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), BcryptCostFactor)
+	if err != nil {
+		return errors.New(HashingErrorMessage)
+	}
+
+	updateQuery := "UPDATE users SET password=$1 WHERE username=$2;"
+	_, err = db.Exec(updateQuery, newHashedPassword, username)
+	return err
+}
+
+// swagger:route DELETE /profile users deleteUser
+//
+// Responses:
+//
+//	200: messageResponse
+//	401: errorResponse
+//	500: errorResponse
+func DeleteAccountHandler(w http.ResponseWriter, r *http.Request) {
+	tokenHeader := r.Header.Get("Authorization")
+	if tokenHeader == "" {
+		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := jwt.VerifyToken(tokenHeader)
+	if err != nil {
+		http.Error(w, InvalidTokenMessage, http.StatusUnauthorized)
+		return
+	}
+
+	db, err := connectToDatabase()
+	if err != nil {
+		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	if err := deleteUserAccount(db, claims.Username); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write([]byte("Account deleted successfully"))
+}
+
+func deleteUserAccount(db *sql.DB, username string) error {
+	query := "DELETE FROM users WHERE username=$1;"
+	_, err := db.Exec(query, username)
+	return err
 }
