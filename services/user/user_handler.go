@@ -13,20 +13,15 @@
 // - application/json
 //
 // swagger:meta
-package main
+package user
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"bookmysalon/models"
 	"bookmysalon/pkg/database"
 	"bookmysalon/pkg/jwt"
-
-	"github.com/gorilla/mux"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -34,34 +29,21 @@ const (
 	BcryptCostFactor        = 8
 	DatabaseErrorMessage    = "Database error"
 	BadRequestMessage       = "Bad request"
-	TokenErrorMessage       = "Failed to generate token"
-	HashingErrorMessage     = "Failed to hash password"
-	UserNotFoundMessage     = "User not found"
-	InvalidPasswordMessage  = "Invalid password"
+	TokenErrorMessage       = "failed to generate token"
+	HashingErrorMessage     = "failed to hash password"
+	UserNotFoundMessage     = "user not found"
+	InvalidPasswordMessage  = "invalid password"
 	InvalidTokenMessage     = "Invalid token"
 	MissingTokenMessage     = "Missing token"
 	ProcessingDataErrorMess = "Failed to process user data"
 )
 
-func main() {
-	r := mux.NewRouter()
-
-	r.HandleFunc("/register", RegisterHandler).Methods("POST")
-	r.HandleFunc("/login", LoginHandler).Methods("POST")
-	r.HandleFunc("/profile", ProfileHandler).Methods("GET")
-	r.HandleFunc("/profile", UpdateProfileHandler).Methods("PUT")
-	r.HandleFunc("/change-password", ChangePasswordHandler).Methods("PUT")
-	r.HandleFunc("/profile", DeleteAccountHandler).Methods("DELETE")
-
-	http.ListenAndServe(ServerAddress, r)
+type UserHandler struct {
+	UserService UserService // Assuming UserService is the interface that UserServiceImpl implements.
 }
 
-func connectToDatabase() (*sql.DB, error) {
-	db, err := database.Connect()
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
+func NewUserHandler(service UserService) *UserHandler {
+	return &UserHandler{UserService: service}
 }
 
 // Register a new user
@@ -72,8 +54,8 @@ func connectToDatabase() (*sql.DB, error) {
 //	200: tokenResponse
 //	400: errorResponse
 //	500: errorResponse
-func RegisterHandler(w http.ResponseWriter, r *http.Request) {
-	db, err := connectToDatabase()
+func (handler *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := database.Connect()
 	if err != nil {
 		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
 		return
@@ -86,7 +68,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := registerUser(db, &u); err != nil {
+	if err := handler.UserService.RegisterUser(db, &u); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -100,19 +82,6 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(token))
 }
 
-func registerUser(db *sql.DB, u *models.User) error {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), BcryptCostFactor)
-	if err != nil {
-		return errors.New(HashingErrorMessage)
-	}
-
-	query := "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id;"
-	if err := db.QueryRow(query, u.Username, hashedPassword).Scan(&u.ID); err != nil {
-		return errors.New("Failed to register user")
-	}
-	return nil
-}
-
 // User login
 // swagger:route POST /login users loginUser
 //
@@ -121,8 +90,8 @@ func registerUser(db *sql.DB, u *models.User) error {
 //	200: tokenResponse
 //	401: errorResponse
 //	500: errorResponse
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	db, err := connectToDatabase()
+func (handler *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := database.Connect()
 	if err != nil {
 		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
 		return
@@ -135,7 +104,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := loginUser(db, &u)
+	token, err := handler.UserService.LoginUser(db, &u)
 	if err != nil {
 		switch err.Error() {
 		case UserNotFoundMessage, InvalidPasswordMessage:
@@ -149,24 +118,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(token))
 }
 
-func loginUser(db *sql.DB, u *models.User) (string, error) {
-	var dbUser models.User
-	query := "SELECT id, password FROM users WHERE username=$1;"
-	if err := db.QueryRow(query, u.Username).Scan(&dbUser.ID, &dbUser.Password); err != nil {
-		return "", errors.New(UserNotFoundMessage)
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(u.Password)); err != nil {
-		return "", errors.New(InvalidPasswordMessage)
-	}
-
-	token, err := jwt.GenerateToken(u.Username)
-	if err != nil {
-		return "", errors.New(TokenErrorMessage)
-	}
-	return token, nil
-}
-
 // Get user profile
 // swagger:route GET /profile users userProfile
 //
@@ -176,7 +127,7 @@ func loginUser(db *sql.DB, u *models.User) (string, error) {
 //	401: errorResponse
 //	404: errorResponse
 //	500: errorResponse
-func ProfileHandler(w http.ResponseWriter, r *http.Request) {
+func (handler *UserHandler) ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	tokenHeader := r.Header.Get("Authorization")
 	if tokenHeader == "" {
 		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
@@ -189,14 +140,14 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := connectToDatabase()
+	db, err := database.Connect()
 	if err != nil {
 		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
 		return
 	}
 	defer db.Close()
 
-	userProfile, err := fetchUserProfile(db, claims.Username)
+	userProfile, err := handler.UserService.FetchUserProfile(db, claims.Username)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -210,16 +161,6 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(response)
 }
 
-func fetchUserProfile(db *sql.DB, username string) (*models.User, error) {
-	var u models.User
-	query := "SELECT id, username FROM users WHERE username=$1;"
-	if err := db.QueryRow(query, username).Scan(&u.ID, &u.Username); err != nil {
-		return nil, errors.New(UserNotFoundMessage)
-	}
-	u.Password = "" // Ensure password is not exposed
-	return &u, nil
-}
-
 // swagger:route PUT /profile users updateUserProfile
 //
 // Responses:
@@ -228,7 +169,7 @@ func fetchUserProfile(db *sql.DB, username string) (*models.User, error) {
 //	401: errorResponse
 //	400: errorResponse
 //	500: errorResponse
-func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
+func (handler *UserHandler) UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	tokenHeader := r.Header.Get("Authorization")
 	if tokenHeader == "" {
 		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
@@ -241,7 +182,7 @@ func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := connectToDatabase()
+	db, err := database.Connect()
 	if err != nil {
 		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
 		return
@@ -255,23 +196,12 @@ func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	u.Username = claims.Username // Ensure the username from token is used
-	if err := updateUserProfile(db, &u); err != nil {
+	if err := handler.UserService.UpdateUserProfile(db, &u); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Write([]byte("Profile updated successfully"))
-}
-
-func updateUserProfile(db *sql.DB, u *models.User) error {
-	query := "UPDATE users SET email=$1, profile_image=$2 WHERE username=$3;"
-	_, err := db.Exec(query, u.Email, u.ProfileImage, u.Username)
-	return err
-}
-
-type PasswordChangeRequest struct {
-	OldPassword string `json:"old_password"`
-	NewPassword string `json:"new_password"`
 }
 
 // swagger:route PUT /change-password users changePassword
@@ -282,7 +212,7 @@ type PasswordChangeRequest struct {
 //	401: errorResponse
 //	400: errorResponse
 //	500: errorResponse
-func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
+func (handler *UserHandler) ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	tokenHeader := r.Header.Get("Authorization")
 	if tokenHeader == "" {
 		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
@@ -295,7 +225,7 @@ func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := connectToDatabase()
+	db, err := database.Connect()
 	if err != nil {
 		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
 		return
@@ -308,33 +238,12 @@ func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := changeUserPassword(db, claims.Username, pcr.OldPassword, pcr.NewPassword); err != nil {
+	if err := handler.UserService.ChangeUserPassword(db, claims.Username, pcr.OldPassword, pcr.NewPassword); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Write([]byte("Password changed successfully"))
-}
-
-func changeUserPassword(db *sql.DB, username, oldPassword, newPassword string) error {
-	var currentHashedPassword string
-	query := "SELECT password FROM users WHERE username=$1;"
-	if err := db.QueryRow(query, username).Scan(&currentHashedPassword); err != nil {
-		return errors.New(UserNotFoundMessage)
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(currentHashedPassword), []byte(oldPassword)); err != nil {
-		return errors.New(InvalidPasswordMessage)
-	}
-
-	newHashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), BcryptCostFactor)
-	if err != nil {
-		return errors.New(HashingErrorMessage)
-	}
-
-	updateQuery := "UPDATE users SET password=$1 WHERE username=$2;"
-	_, err = db.Exec(updateQuery, newHashedPassword, username)
-	return err
 }
 
 // swagger:route DELETE /profile users deleteUser
@@ -344,7 +253,7 @@ func changeUserPassword(db *sql.DB, username, oldPassword, newPassword string) e
 //	200: messageResponse
 //	401: errorResponse
 //	500: errorResponse
-func DeleteAccountHandler(w http.ResponseWriter, r *http.Request) {
+func (handler *UserHandler) DeleteAccountHandler(w http.ResponseWriter, r *http.Request) {
 	tokenHeader := r.Header.Get("Authorization")
 	if tokenHeader == "" {
 		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
@@ -357,23 +266,17 @@ func DeleteAccountHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := connectToDatabase()
+	db, err := database.Connect()
 	if err != nil {
 		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
 		return
 	}
 	defer db.Close()
 
-	if err := deleteUserAccount(db, claims.Username); err != nil {
+	if err := handler.UserService.DeleteUserAccount(db, claims.Username); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Write([]byte("Account deleted successfully"))
-}
-
-func deleteUserAccount(db *sql.DB, username string) error {
-	query := "DELETE FROM users WHERE username=$1;"
-	_, err := db.Exec(query, username)
-	return err
 }
