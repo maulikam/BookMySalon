@@ -14,6 +14,9 @@ const (
 	dbname   = "bookmysalon"
 )
 
+
+
+
 func connect() *sql.DB {
 	connStr := "host=%s port=%d user=%s password=%s dbname=%s sslmode=disable"
 	connStr = fmt.Sprintf(connStr, host, port, user, password, dbname)
