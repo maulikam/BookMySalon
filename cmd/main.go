@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bookmysalon/pkg/database"
 	"bookmysalon/services/appointment"
 	"bookmysalon/services/availability"
 	"bookmysalon/services/review"
@@ -15,6 +16,10 @@ import (
 const ServerAddress = ":8080"
 
 func main() {
+
+	// Run the migrations first
+	database.RunMigrations()
+
 	// Initialize Salon service
 	salonService, err := salon.NewSalonService()
 	if err != nil {
