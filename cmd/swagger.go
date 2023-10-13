@@ -1,4 +1,4 @@
-package main
+package swaggerdocs
 
 // Generic error model
 // swagger:response errorResponse
