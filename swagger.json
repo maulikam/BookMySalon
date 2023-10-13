@@ -1,0 +1,173 @@
+{
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "schemes": [
+    "http"
+  ],
+  "swagger": "2.0",
+  "info": {
+    "description": "Documentation for Book My Salon API.",
+    "title": "of Book My Salon API.",
+    "version": "1.0.0"
+  },
+  "basePath": "/",
+  "paths": {
+    "/change-password": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "changePassword",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/messageResponse"
+          },
+          "400": {
+            "$ref": "#/responses/errorResponse"
+          },
+          "401": {
+            "$ref": "#/responses/errorResponse"
+          },
+          "500": {
+            "$ref": "#/responses/errorResponse"
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "loginUser",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/tokenResponse"
+          },
+          "401": {
+            "$ref": "#/responses/errorResponse"
+          },
+          "500": {
+            "$ref": "#/responses/errorResponse"
+          }
+        }
+      }
+    },
+    "/profile": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "userProfile",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/userResponse"
+          },
+          "401": {
+            "$ref": "#/responses/errorResponse"
+          },
+          "404": {
+            "$ref": "#/responses/errorResponse"
+          },
+          "500": {
+            "$ref": "#/responses/errorResponse"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "updateUserProfile",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/userResponse"
+          },
+          "400": {
+            "$ref": "#/responses/errorResponse"
+          },
+          "401": {
+            "$ref": "#/responses/errorResponse"
+          },
+          "500": {
+            "$ref": "#/responses/errorResponse"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "deleteUser",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/messageResponse"
+          },
+          "401": {
+            "$ref": "#/responses/errorResponse"
+          },
+          "500": {
+            "$ref": "#/responses/errorResponse"
+          }
+        }
+      }
+    },
+    "/register": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "registerUser",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/tokenResponse"
+          },
+          "400": {
+            "$ref": "#/responses/errorResponse"
+          },
+          "500": {
+            "$ref": "#/responses/errorResponse"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "errorResponse": {
+      "description": "Generic error model",
+      "headers": {
+        "message": {
+          "type": "string",
+          "description": "The error message\nrequired: true"
+        }
+      }
+    },
+    "tokenResponse": {
+      "description": "A token model",
+      "headers": {
+        "token": {
+          "type": "string",
+          "description": "The JWT token\nrequired: true"
+        }
+      }
+    },
+    "userResponse": {
+      "description": "A user representation without password",
+      "headers": {
+        "id": {
+          "type": "integer",
+          "format": "int64",
+          "description": "User's unique ID\nrequired: true"
+        },
+        "username": {
+          "type": "string",
+          "description": "Username for the user\nrequired: true"
+        }
+      }
+    }
+  }
+}

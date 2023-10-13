@@ -54,6 +54,9 @@ func main() {
 	reviewHandler := review.NewReviewHandler(reviewService)
 
 	r := mux.NewRouter()
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Welcome to BookMySalon API!"))
+	}).Methods("GET")
 
 	// Salon routes
 	r.HandleFunc("/salon", salonHandler.CreateSalon).Methods("POST")
@@ -117,9 +120,12 @@ func main() {
 	r.HandleFunc("/reviews/user/{userID}", reviewHandler.ListReviewsByUserID).Methods("GET")
 	r.HandleFunc("/reviews/rating/{rating}", reviewHandler.ListReviewsByRating).Methods("GET")
 
-	// Swagger UI and JSON routes (assuming you still want these from the salon handlers)
-	fs := http.FileServer(http.Dir("./swaggerui/"))
+	fs := http.FileServer(http.Dir("swaggerui"))
 	r.PathPrefix("/swaggerui/").Handler(http.StripPrefix("/swaggerui/", fs))
+
+	// Swagger UI and JSON routes (assuming you still want these from the salon handlers)
+	// fs := http.FileServer(http.Dir("./swaggerui/"))
+	// r.PathPrefix("/swaggerui/").Handler(http.StripPrefix("/swaggerui/", fs))
 	r.HandleFunc("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./swagger.json")
 	})
