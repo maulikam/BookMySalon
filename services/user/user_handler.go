@@ -17,6 +17,7 @@ package user
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"bookmysalon/models"
@@ -91,6 +92,7 @@ func (handler *UserHandler) RegisterHandler(w http.ResponseWriter, r *http.Reque
 //	401: errorResponse
 //	500: errorResponse
 func (handler *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
+	// Fetch database connection
 	db, err := database.Connect()
 	if err != nil {
 		http.Error(w, DatabaseErrorMessage, http.StatusInternalServerError)
@@ -118,6 +120,15 @@ func (handler *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request)
 	w.Write([]byte(token))
 }
 
+// Assuming there's a helper function to fetch claims from context:
+func getUserClaimsFromContext(r *http.Request) (jwt.Claims, error) {
+	claims, ok := r.Context().Value("userClaims").(jwt.Claims)
+	if !ok {
+		return claims, errors.New("no user claims found in context")
+	}
+	return claims, nil
+}
+
 // Get user profile
 // swagger:route GET /profile users userProfile
 //
@@ -128,13 +139,7 @@ func (handler *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request)
 //	404: errorResponse
 //	500: errorResponse
 func (handler *UserHandler) ProfileHandler(w http.ResponseWriter, r *http.Request) {
-	tokenHeader := r.Header.Get("Authorization")
-	if tokenHeader == "" {
-		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
-		return
-	}
-
-	claims, err := jwt.VerifyToken(tokenHeader)
+	claims, err := getUserClaimsFromContext(r)
 	if err != nil {
 		http.Error(w, InvalidTokenMessage, http.StatusUnauthorized)
 		return
@@ -170,13 +175,7 @@ func (handler *UserHandler) ProfileHandler(w http.ResponseWriter, r *http.Reques
 //	400: errorResponse
 //	500: errorResponse
 func (handler *UserHandler) UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
-	tokenHeader := r.Header.Get("Authorization")
-	if tokenHeader == "" {
-		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
-		return
-	}
-
-	claims, err := jwt.VerifyToken(tokenHeader)
+	claims, err := getUserClaimsFromContext(r)
 	if err != nil {
 		http.Error(w, InvalidTokenMessage, http.StatusUnauthorized)
 		return
@@ -213,13 +212,7 @@ func (handler *UserHandler) UpdateProfileHandler(w http.ResponseWriter, r *http.
 //	400: errorResponse
 //	500: errorResponse
 func (handler *UserHandler) ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
-	tokenHeader := r.Header.Get("Authorization")
-	if tokenHeader == "" {
-		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
-		return
-	}
-
-	claims, err := jwt.VerifyToken(tokenHeader)
+	claims, err := getUserClaimsFromContext(r)
 	if err != nil {
 		http.Error(w, InvalidTokenMessage, http.StatusUnauthorized)
 		return
@@ -254,13 +247,7 @@ func (handler *UserHandler) ChangePasswordHandler(w http.ResponseWriter, r *http
 //	401: errorResponse
 //	500: errorResponse
 func (handler *UserHandler) DeleteAccountHandler(w http.ResponseWriter, r *http.Request) {
-	tokenHeader := r.Header.Get("Authorization")
-	if tokenHeader == "" {
-		http.Error(w, MissingTokenMessage, http.StatusUnauthorized)
-		return
-	}
-
-	claims, err := jwt.VerifyToken(tokenHeader)
+	claims, err := getUserClaimsFromContext(r)
 	if err != nil {
 		http.Error(w, InvalidTokenMessage, http.StatusUnauthorized)
 		return
