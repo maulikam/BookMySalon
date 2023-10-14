@@ -1,0 +1,1 @@
+Contains all the data models, like User, Salon, etc.

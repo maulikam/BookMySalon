@@ -1,0 +1,1 @@
+Contains reusable widgets that might be used across different screens or pages.
